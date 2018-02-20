@@ -1,5 +1,5 @@
 import logging
-from requests import get, put, delete
+from requests import get, put, delete, head
 from requests.exceptions import HTTPError
 import json
 from .AuthorizationService import AuthorizationService
@@ -213,10 +213,39 @@ class BaseClientV2(CommonBaseClient):
         return self._http_call(self.MANIFEST, delete,
                                name=name, reference=digest)
 
+    def manifest_exists(self, name, digest):
+        self.auth.desired_scope = 'repository:%s:*' % name
+        return self._entity_exists(
+            url=self.MANIFEST,
+            name=name,
+            digest=digest,
+        )
+
     def delete_blob(self, name, digest):
         self.auth.desired_scope = 'repository:%s:*' % name
         return self._http_call(self.BLOB, delete,
                                name=name, digest=digest)
+
+    def blob_exists(self, name, digest):
+        self.auth.desired_scope = 'repository:%s:*' % name
+        return self._entity_exists(url=self.BLOB,
+                                   name=name, digest=digest)
+
+    def _entity_exists(self, url, name, digest):
+        try:
+            self._http_call(
+                url=url,
+                method=head,
+                name=name,
+                digest=digest,
+            )
+        except HTTPError as e:
+            response = e.response
+            if response.status_code == 404:
+                return False
+            else:
+                response.raise_for_status()
+        return True
 
     def _cache_manifest_digest(self, name, reference, response=None):
         if not response:
